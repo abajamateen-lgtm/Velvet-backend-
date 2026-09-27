@@ -1,0 +1,12 @@
+{
+  "name": "mapminer-crawler",
+  "version": "1.0.0",
+  "description": "MapMiner B2B lead crawler (Node/Express)",
+  "main": "crawler.js",
+  "scripts": {
+    "start": "node crawler.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2"
+  }
+}

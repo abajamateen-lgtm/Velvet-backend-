@@ -1,0 +1,1801 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MapMiner - High-Speed B2B Data Engine</title>
+    
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        brand: {
+                            50: '#ecfdf5',
+                            100: '#d1fae5',
+                            400: '#34d399',
+                            500: '#10b981',
+                            600: '#059669',
+                            900: '#064e3b',
+                            accent: '#00ff88',
+                            glow: 'rgba(0, 255, 136, 0.25)'
+                        },
+                        darkbg: '#0a0d14',
+                        glass: 'rgba(18, 24, 38, 0.75)',
+                        glassborder: 'rgba(255, 255, 255, 0.08)'
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif']
+                    }
+                }
+            }
+        }
+    </script>
+    
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <!-- Flutterwave Inline Checkout (used only by the Support/Donate button) -->
+    <script src="https://checkout.flutterwave.com/v3.js"></script>
+
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #07090e;
+            background-image: 
+                radial-gradient(circle at 15% 15%, rgba(16, 185, 129, 0.08) 0%, transparent 40%),
+                radial-gradient(circle at 85% 85%, rgba(59, 130, 246, 0.06) 0%, transparent 40%);
+            background-attachment: fixed;
+            color: #f3f4f6;
+        }
+
+        /* Glassmorphism Panel styles */
+        .glass-panel {
+            background: rgba(15, 22, 36, 0.75);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+        }
+
+        .glass-panel-glow {
+            background: rgba(15, 22, 36, 0.85);
+            backdrop-filter: blur(16px);
+            border: 1px solid rgba(0, 255, 136, 0.25);
+            box-shadow: 0 0 25px rgba(0, 255, 136, 0.12);
+        }
+
+        .glass-input {
+            background: rgba(8, 12, 20, 0.7);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            color: #f3f4f6;
+        }
+
+        .glass-input:focus {
+            border-color: #10b981;
+            box-shadow: 0 0 12px rgba(16, 185, 129, 0.3);
+            outline: none;
+        }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: rgba(10, 13, 20, 0.5);
+        }
+        ::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.15);
+            border-radius: 3px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(16, 185, 129, 0.5);
+        }
+
+        /* Offline Radar Visualization (replaces external map tiles) */
+        #radar {
+            background: #0b0f19;
+            border-radius: 0.75rem;
+            position: relative;
+            overflow: hidden;
+        }
+        .radar-ring {
+            stroke: rgba(255,255,255,0.06);
+            fill: none;
+        }
+        .radar-dot {
+            fill: #10b981;
+            stroke: #ffffff;
+            stroke-width: 1;
+            cursor: pointer;
+            transition: r 0.15s ease, fill 0.15s ease;
+        }
+        .radar-dot:hover {
+            fill: #34d399;
+            r: 8;
+        }
+
+        /* Ticker pulse */
+        @keyframes pulse-glow {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.6; transform: scale(0.98); }
+        }
+        .pulse-active {
+            animation: pulse-glow 2s infinite ease-in-out;
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col justify-between overflow-x-hidden text-slate-200">
+
+    <!-- Navigation Header -->
+    <header class="sticky top-0 z-40 glass-panel border-b border-white/10 px-4 lg:px-8 py-3.5">
+        <div class="max-w-7xl mx-auto flex items-center justify-between">
+            <!-- Brand Logo -->
+            <div class="flex items-center gap-3 cursor-pointer" onclick="window.scrollTo({top:0, behavior:'smooth'})">
+                <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-brand-600 to-brand-400 flex items-center justify-center text-slate-950 font-black text-xl shadow-lg shadow-brand-500/20">
+                    <i class="fa-solid fa-compass-drafting"></i>
+                </div>
+                <div>
+                    <span class="text-xl font-extrabold tracking-tight text-white flex items-center gap-1.5">
+                        Map<span class="text-brand-400">Miner</span>
+                        <span class="text-[10px] px-2 py-0.5 rounded-full bg-brand-500/10 text-brand-400 border border-brand-500/30 uppercase font-semibold">Live Crawler</span>
+                    </span>
+                    <p class="text-[11px] text-slate-400 font-medium">B2B Local Lead Vault — Live OpenStreetMap Data</p>
+                </div>
+            </div>
+
+            <!-- Ticker Stats & Storage Widget -->
+            <div class="flex items-center gap-2">
+                <!-- Live Connection Status Pill -->
+                <button onclick="toggleSettingsModal()" id="connStatusBadge" class="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-lg glass-panel text-xs text-slate-300 hover:border-brand-500/40 transition" title="Click to configure crawler connection">
+                    <i class="fa-solid fa-circle text-[8px] text-slate-500" id="connDot"></i>
+                    <span id="connStatusText">Checking crawler…</span>
+                </button>
+
+                <!-- Storage Status Pill -->
+                <div class="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-lg glass-panel text-xs text-slate-300" id="storageStatusBadge">
+                    <i class="fa-solid fa-hard-drive text-brand-400"></i>
+                    <span>Vault: <strong id="storageItemCount" class="text-white">0</strong> saved</span>
+                </div>
+
+                <!-- Import Leads Trigger -->
+                <button onclick="toggleImportModal()" class="px-3.5 py-1.5 rounded-lg bg-slate-800/80 hover:bg-slate-700/80 border border-slate-700 text-xs font-semibold text-slate-200 transition flex items-center gap-2">
+                    <i class="fa-solid fa-file-import text-brand-400"></i>
+                    <span class="hidden sm:inline">Import</span>
+                </button>
+
+                <!-- Add Lead Manually Trigger -->
+                <button onclick="toggleAddLeadModal()" class="px-3.5 py-1.5 rounded-lg bg-slate-800/80 hover:bg-slate-700/80 border border-slate-700 text-xs font-semibold text-slate-200 transition flex items-center gap-2">
+                    <i class="fa-solid fa-plus text-brand-400"></i>
+                    <span class="hidden sm:inline">Add Lead</span>
+                </button>
+
+                <!-- Saved Leads Drawer Trigger -->
+                <button onclick="toggleSavedDrawer()" class="relative px-3.5 py-1.5 rounded-lg bg-slate-800/80 hover:bg-slate-700/80 border border-slate-700 text-xs font-semibold text-slate-200 transition flex items-center gap-2">
+                    <i class="fa-solid fa-bookmark text-amber-400"></i>
+                    <span class="hidden sm:inline">Saved Leads</span>
+                    <span id="savedBadgeCount" class="px-1.5 py-0.2 text-[10px] bg-brand-500 text-slate-950 font-bold rounded-full">0</span>
+                </button>
+
+                <!-- Settings (API endpoint config) -->
+                <button onclick="toggleSettingsModal()" class="px-3 py-1.5 rounded-lg bg-slate-800/80 hover:bg-slate-700/80 border border-slate-700 text-xs font-semibold text-slate-200 transition" title="Crawler connection settings">
+                    <i class="fa-solid fa-gear text-slate-400"></i>
+                </button>
+
+                <!-- Donate Trigger (header placement #1) -->
+                <button onclick="openDonateModal('header')" class="px-3.5 py-1.5 rounded-lg bg-gradient-to-r from-pink-500/20 to-rose-500/20 hover:from-pink-500/30 hover:to-rose-500/30 border border-pink-500/30 text-xs font-semibold text-pink-300 transition flex items-center gap-2">
+                    <i class="fa-solid fa-heart"></i>
+                    <span class="hidden sm:inline">Support</span>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content Container -->
+    <main class="max-w-7xl mx-auto w-full px-4 lg:px-8 py-6 space-y-6 flex-1">
+
+        <!-- Hero Section -->
+        <section class="text-center py-6 relative">
+            <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-brand-500/10 border border-brand-500/20 text-brand-400 text-xs font-semibold mb-4 pulse-active">
+                <span class="w-2 h-2 rounded-full bg-brand-400 animate-ping"></span>
+                <span>Live OpenStreetMap Crawler — Real Businesses, Real Contacts</span>
+            </div>
+
+            <h1 class="text-3xl sm:text-4xl lg:text-5xl font-black tracking-tight text-white mb-3">
+                Stop Hunting for Local Clients.<br class="hidden sm:block"/> 
+                Build Your Own <span class="text-transparent bg-clip-text bg-gradient-to-r from-brand-400 via-emerald-300 to-teal-400">Live Lead Vault</span>.
+            </h1>
+            <p class="text-slate-400 max-w-2xl mx-auto text-sm sm:text-base mb-6 leading-relaxed">
+                Pulls real businesses from OpenStreetMap by category and location, then lets you tag, score, and export them. Import your own lists or add leads by hand too — everything saved to your device stays on your device.
+            </p>
+
+            <!-- Metric Ticker Strip -->
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-3 max-w-3xl mx-auto">
+                <div class="p-3 rounded-xl glass-panel text-center">
+                    <div class="text-xs text-slate-400 mb-0.5">Data Source</div>
+                    <div class="text-lg font-bold text-white">Live OSM</div>
+                </div>
+                <div class="p-3 rounded-xl glass-panel text-center">
+                    <div class="text-xs text-slate-400 mb-0.5">Session Leads</div>
+                    <div class="text-lg font-bold text-brand-400" id="statSessionLeads">0</div>
+                </div>
+                <div class="p-3 rounded-xl glass-panel text-center">
+                    <div class="text-xs text-slate-400 mb-0.5">Saved to Vault</div>
+                    <div class="text-lg font-bold text-emerald-300" id="statVaultCount">0</div>
+                </div>
+                <div class="p-3 rounded-xl glass-panel text-center">
+                    <div class="text-xs text-slate-400 mb-0.5">Export Cost</div>
+                    <div class="text-lg font-bold text-teal-300">$0.00 Forever</div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Search & Control Glass Panel -->
+        <section class="glass-panel-glow rounded-2xl p-4 sm:p-6 transition-all">
+            <form id="searchForm" onsubmit="handleSearch(event)" class="space-y-4">
+                <div class="grid grid-cols-1 sm:grid-cols-12 gap-3">
+                    
+                    <!-- Business Type / Occupation Input -->
+                    <div class="sm:col-span-4 relative">
+                        <label class="block text-xs font-medium text-slate-400 mb-1">
+                            <i class="fa-solid fa-briefcase text-brand-400 mr-1"></i> Business Type / Service
+                        </label>
+                        <input 
+                            type="text" 
+                            id="categoryInput" 
+                            placeholder="e.g. gym, cafe, dentist, plumber..." 
+                            required
+                            class="w-full px-4 py-2.5 rounded-xl glass-input text-sm focus:ring-1 focus:ring-brand-400 transition"
+                        />
+                    </div>
+
+                    <!-- Target Location Input -->
+                    <div class="sm:col-span-4 relative">
+                        <label class="block text-xs font-medium text-slate-400 mb-1">
+                            <i class="fa-solid fa-location-dot text-brand-400 mr-1"></i> City, Region, or Country
+                        </label>
+                        <div class="flex gap-1.5">
+                            <input 
+                                type="text" 
+                                id="locationInput" 
+                                placeholder="e.g. Austin, London, Lagos, Sydney..." 
+                                required
+                                class="w-full px-4 py-2.5 rounded-xl glass-input text-sm focus:ring-1 focus:ring-brand-400 transition"
+                            />
+                            <button type="button" onclick="useMyLocation()" id="nearMeBtn" title="Use my current location (live search around GPS position)"
+                                class="shrink-0 px-3 rounded-xl bg-slate-800/80 hover:bg-brand-500/20 border border-slate-700 hover:border-brand-500/40 text-slate-300 hover:text-brand-400 transition">
+                                <i class="fa-solid fa-location-crosshairs"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Radius Selector -->
+                    <div class="sm:col-span-2 relative">
+                        <label class="block text-xs font-medium text-slate-400 mb-1">
+                            <i class="fa-solid fa-ruler text-brand-400 mr-1"></i> Radius
+                        </label>
+                        <select id="radiusInput" class="w-full px-3 py-2.5 rounded-xl glass-input text-sm focus:ring-1 focus:ring-brand-400 transition">
+                            <option value="2000">2 km</option>
+                            <option value="5000" selected>5 km</option>
+                            <option value="10000">10 km</option>
+                            <option value="20000">20 km</option>
+                            <option value="50000">50 km</option>
+                        </select>
+                    </div>
+
+                    <!-- Submit Search Button -->
+                    <div class="sm:col-span-2 flex items-end">
+                        <button 
+                            type="submit" 
+                            id="searchBtn"
+                            class="w-full py-2.5 px-4 rounded-xl bg-gradient-to-r from-brand-500 to-teal-500 hover:from-brand-400 hover:to-teal-400 text-slate-950 font-bold text-sm shadow-lg shadow-brand-500/20 transition flex items-center justify-center gap-2 cursor-pointer"
+                        >
+                            <i class="fa-solid fa-bolt"></i>
+                            <span>Search</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Quick Pick Pills -->
+                <div>
+                    <div class="flex items-center justify-between mb-2">
+                        <span class="text-xs font-medium text-slate-400">Popular B2B Targets:</span>
+                        <span class="text-[11px] text-slate-500">Click a pill to run that search instantly</span>
+                    </div>
+                    <div class="flex flex-wrap gap-1.5" id="quickPillsContainer">
+                        <!-- Quick pills populated via JS -->
+                    </div>
+                </div>
+                <div class="text-[11px] text-slate-500 flex items-center gap-1.5">
+                    <i class="fa-solid fa-circle-info text-slate-600"></i>
+                    <span id="searchHintText">Pulls live results from your local MapMiner crawler (OpenStreetMap data). Make sure <code class="text-slate-400">node crawler.js</code> is running — check the connection pill top-right.</span>
+                </div>
+            </form>
+        </section>
+
+        <!-- Contextual Donation Banner (shown once per session after a successful live search) -->
+        <div id="donateBanner" class="hidden glass-panel-glow rounded-2xl p-4 flex flex-wrap items-center justify-between gap-3 border border-pink-500/20">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-xl bg-pink-500/15 flex items-center justify-center text-pink-400 text-lg shrink-0">
+                    <i class="fa-solid fa-mug-hot"></i>
+                </div>
+                <div>
+                    <p class="text-sm font-semibold text-white" id="donateBannerHeadline">Nice — that just found you real leads in seconds.</p>
+                    <p class="text-xs text-slate-400">MapMiner is free and built solo. If it's saving you time, a small tip keeps it alive and improving.</p>
+                </div>
+            </div>
+            <div class="flex items-center gap-2 shrink-0">
+                <button onclick="openDonateModal('banner')" class="px-4 py-2 rounded-xl bg-gradient-to-r from-pink-500 to-rose-500 text-white font-bold text-xs hover:opacity-90 transition">Chip In</button>
+                <button onclick="dismissDonateBanner()" class="px-2 py-2 text-slate-500 hover:text-slate-300 text-xs">Not now</button>
+            </div>
+        </div>
+
+        <!-- Interactive Layout: Map + Lead Results Split -->
+        <section class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+            
+            <!-- Left Side: Offline SVG Radar (no external map tiles) -->
+            <div class="lg:col-span-5 h-[420px] lg:h-[620px] glass-panel rounded-2xl p-2 relative flex flex-col">
+                <div class="flex items-center justify-between px-3 py-2 border-b border-white/5">
+                    <span class="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
+                        <i class="fa-solid fa-satellite-dish text-brand-400"></i> Lead Radar (relative positions)
+                    </span>
+                    <span id="mapStatusText" class="text-[11px] text-slate-400">Ready</span>
+                </div>
+                <div id="radar" class="w-full flex-1 rounded-xl mt-2"></div>
+            </div>
+
+            <!-- Right Side: Filterable Results Table Panel -->
+            <div class="lg:col-span-7 glass-panel rounded-2xl p-4 flex flex-col h-[620px]">
+                
+                <!-- Table Action Toolbar -->
+                <div class="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-white/10">
+                    <div>
+                        <h2 class="text-base font-bold text-white flex items-center gap-2">
+                            <span>Lead Results</span>
+                            <span id="resultsCountBadge" class="px-2 py-0.5 rounded-full bg-slate-800 text-brand-400 border border-slate-700 text-xs">0 items</span>
+                            <span id="resultsSourceBadge" class="hidden px-2 py-0.5 rounded-full bg-slate-800 text-slate-400 border border-slate-700 text-[10px] uppercase"></span>
+                        </h2>
+                    </div>
+
+                    <div class="flex items-center gap-2 flex-wrap">
+                        <!-- Filter dropdown -->
+                        <select id="contactFilter" onchange="applyFilters()" class="px-2.5 py-1.5 rounded-lg glass-input text-xs text-slate-300">
+                            <option value="all">All Records</option>
+                            <option value="has_phone">With Phone Number</option>
+                            <option value="has_website">With Website</option>
+                            <option value="hot">Hot Leads Only</option>
+                        </select>
+
+                        <!-- Sort dropdown -->
+                        <select id="sortSelect" onchange="applyFilters()" class="px-2.5 py-1.5 rounded-lg glass-input text-xs text-slate-300">
+                            <option value="default">Sort: Default</option>
+                            <option value="score">Sort: Lead Quality</option>
+                            <option value="name">Sort: Name (A-Z)</option>
+                            <option value="distance">Sort: Distance</option>
+                        </select>
+
+                        <!-- Bulk copy dropdown -->
+                        <div class="relative">
+                            <button onclick="toggleBulkMenu()" class="px-3 py-1.5 rounded-lg bg-slate-800/80 hover:bg-slate-700/80 border border-slate-700 text-xs font-semibold text-slate-200 transition flex items-center gap-1.5">
+                                <i class="fa-solid fa-clone"></i><span class="hidden sm:inline">Bulk</span> <i class="fa-solid fa-caret-down text-[10px]"></i>
+                            </button>
+                            <div id="bulkMenu" class="hidden absolute right-0 mt-1 w-52 rounded-xl glass-panel-glow border border-white/10 py-1 z-20 text-xs">
+                                <button onclick="copyAllContacts('phone')" class="w-full text-left px-3 py-2 hover:bg-white/5 flex items-center gap-2"><i class="fa-solid fa-phone text-brand-400"></i> Copy all phone numbers</button>
+                                <button onclick="copyAllContacts('website')" class="w-full text-left px-3 py-2 hover:bg-white/5 flex items-center gap-2"><i class="fa-solid fa-globe text-brand-400"></i> Copy all websites</button>
+                                <button onclick="saveAllVisibleToVault()" class="w-full text-left px-3 py-2 hover:bg-white/5 flex items-center gap-2"><i class="fa-solid fa-bookmark text-amber-400"></i> Save all visible to Vault</button>
+                            </div>
+                        </div>
+
+                        <!-- Download CSV Button -->
+                        <button onclick="exportCurrentCSV()" class="px-3 py-1.5 rounded-lg bg-brand-500/10 hover:bg-brand-500/20 border border-brand-500/30 text-brand-400 text-xs font-semibold transition flex items-center gap-1.5">
+                            <i class="fa-solid fa-file-csv"></i>
+                            <span>Export CSV</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Results Scrollable List / Table -->
+                <div class="flex-1 overflow-y-auto mt-3 pr-1" id="resultsContainer">
+                    <!-- Default Empty State -->
+                    <div class="h-full flex flex-col items-center justify-center text-center p-8 text-slate-500">
+                        <div class="w-16 h-16 rounded-2xl bg-slate-800/50 flex items-center justify-center text-3xl mb-3 text-slate-600">
+                            <i class="fa-solid fa-radar"></i>
+                        </div>
+                        <h3 class="text-sm font-semibold text-slate-300 mb-1">No Leads Yet</h3>
+                        <p class="text-xs max-w-sm">Run a live search with a Quick-Pick pill, import your own list, or add a lead manually.</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- Saved Leads Drawer (Slide-over Modal) -->
+    <div id="savedDrawer" class="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex justify-end hidden transition-opacity">
+        <div class="w-full max-w-md bg-slate-900 border-l border-white/10 h-full flex flex-col p-5 shadow-2xl">
+            <div class="flex items-center justify-between pb-4 border-b border-white/10">
+                <h3 class="text-base font-bold text-white flex items-center gap-2">
+                    <i class="fa-solid fa-bookmark text-amber-400"></i>
+                    <span>Saved Leads Vault</span>
+                </h3>
+                <button onclick="toggleSavedDrawer()" class="text-slate-400 hover:text-white p-1 text-lg">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+
+            <div class="py-3 flex items-center justify-between">
+                <span class="text-xs text-slate-400" id="savedVaultCounter">0 leads stored</span>
+                <div class="flex gap-2">
+                    <button onclick="clearSavedVault()" class="text-[11px] text-red-400 hover:text-red-300">Clear All</button>
+                    <button onclick="exportSavedCSV()" class="px-2.5 py-1 rounded bg-brand-500/20 text-brand-400 text-xs font-semibold hover:bg-brand-500/30">
+                        Export Vault CSV
+                    </button>
+                </div>
+            </div>
+
+            <div class="flex-1 overflow-y-auto space-y-2 py-2" id="savedVaultList">
+                <!-- Populated dynamically -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Import Leads Modal -->
+    <div id="importModal" class="fixed inset-0 z-50 bg-black/70 backdrop-blur-md flex items-center justify-center p-4 hidden">
+        <div class="glass-panel-glow rounded-2xl max-w-lg w-full p-6 relative border border-white/15">
+            <button onclick="toggleImportModal()" class="absolute top-4 right-4 text-slate-400 hover:text-white p-1 text-base">
+                <i class="fa-solid fa-xmark"></i>
+            </button>
+            <h3 class="text-base font-bold text-white mb-1 flex items-center gap-2">
+                <i class="fa-solid fa-file-import text-brand-400"></i> Import Leads
+            </h3>
+            <p class="text-xs text-slate-400 mb-3">Paste CSV (same columns as the export) or a JSON array of lead objects. Nothing is sent anywhere — this is parsed entirely in your browser.</p>
+            <textarea id="importTextarea" rows="8" placeholder='Name,Category,Phone,Website,Address,Latitude,Longitude&#10;Acme Gym,gym,555-1234,acmegym.com,123 Main St,51.5,-0.1' class="w-full px-3 py-2 rounded-xl glass-input text-xs font-mono focus:ring-1 focus:ring-brand-400 transition"></textarea>
+            <div class="flex items-center justify-between mt-3">
+                <button onclick="downloadCSVTemplate()" class="text-[11px] text-slate-400 hover:text-brand-400 underline">Download CSV template</button>
+                <button onclick="importPastedLeads()" class="px-4 py-2 rounded-xl bg-brand-500 text-slate-950 font-bold text-xs hover:bg-brand-400 transition">Import Into Vault</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add Lead Manually Modal -->
+    <div id="addLeadModal" class="fixed inset-0 z-50 bg-black/70 backdrop-blur-md flex items-center justify-center p-4 hidden">
+        <div class="glass-panel-glow rounded-2xl max-w-lg w-full p-6 relative border border-white/15">
+            <button onclick="toggleAddLeadModal()" class="absolute top-4 right-4 text-slate-400 hover:text-white p-1 text-base">
+                <i class="fa-solid fa-xmark"></i>
+            </button>
+            <h3 class="text-base font-bold text-white mb-3 flex items-center gap-2">
+                <i class="fa-solid fa-plus text-brand-400"></i> Add Lead Manually
+            </h3>
+            <form onsubmit="submitManualLead(event)" class="grid grid-cols-2 gap-2.5">
+                <input id="mlName" required placeholder="Business Name" class="col-span-2 px-3 py-2 rounded-xl glass-input text-xs focus:ring-1 focus:ring-brand-400" />
+                <input id="mlCategory" required placeholder="Category (e.g. gym)" class="px-3 py-2 rounded-xl glass-input text-xs focus:ring-1 focus:ring-brand-400" />
+                <input id="mlPhone" placeholder="Phone" class="px-3 py-2 rounded-xl glass-input text-xs focus:ring-1 focus:ring-brand-400" />
+                <input id="mlWebsite" placeholder="Website" class="px-3 py-2 rounded-xl glass-input text-xs focus:ring-1 focus:ring-brand-400" />
+                <input id="mlAddress" placeholder="Address" class="px-3 py-2 rounded-xl glass-input text-xs focus:ring-1 focus:ring-brand-400" />
+                <input id="mlLat" type="number" step="any" placeholder="Latitude (optional)" class="px-3 py-2 rounded-xl glass-input text-xs focus:ring-1 focus:ring-brand-400" />
+                <input id="mlLon" type="number" step="any" placeholder="Longitude (optional)" class="px-3 py-2 rounded-xl glass-input text-xs focus:ring-1 focus:ring-brand-400" />
+                <button type="submit" class="col-span-2 mt-1 py-2 rounded-xl bg-brand-500 text-slate-950 font-bold text-xs hover:bg-brand-400 transition">Add to Vault</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Lead Detail Modal -->
+    <div id="leadModal" class="fixed inset-0 z-50 bg-black/70 backdrop-blur-md flex items-center justify-center p-4 hidden">
+        <div class="glass-panel-glow rounded-2xl max-w-lg w-full p-6 relative border border-white/15">
+            <button onclick="closeLeadModal()" class="absolute top-4 right-4 text-slate-400 hover:text-white p-1 text-base">
+                <i class="fa-solid fa-xmark"></i>
+            </button>
+
+            <div id="modalContent">
+                <!-- Dynamically injected lead details -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Settings Modal (Crawler API connection) -->
+    <div id="settingsModal" class="fixed inset-0 z-50 bg-black/70 backdrop-blur-md flex items-center justify-center p-4 hidden">
+        <div class="glass-panel-glow rounded-2xl max-w-lg w-full p-6 relative border border-white/15">
+            <button onclick="toggleSettingsModal()" class="absolute top-4 right-4 text-slate-400 hover:text-white p-1 text-base">
+                <i class="fa-solid fa-xmark"></i>
+            </button>
+            <h3 class="text-base font-bold text-white mb-1 flex items-center gap-2">
+                <i class="fa-solid fa-gear text-brand-400"></i> Crawler Connection
+            </h3>
+            <p class="text-xs text-slate-400 mb-3">MapMiner's search results come from your own local <code class="text-slate-300">crawler.js</code> server. Point this at wherever it's running.</p>
+            <label class="block text-xs font-medium text-slate-400 mb-1">Crawler API Base URL</label>
+            <input id="apiBaseInput" placeholder="http://127.0.0.1:5000" class="w-full px-3 py-2 rounded-xl glass-input text-xs font-mono focus:ring-1 focus:ring-brand-400 mb-3" />
+            <div class="flex items-center justify-between gap-2">
+                <button onclick="testCrawlerConnection()" class="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold transition flex items-center gap-1.5">
+                    <i class="fa-solid fa-plug-circle-check"></i> Test Connection
+                </button>
+                <button onclick="saveApiBaseUrl()" class="px-4 py-2 rounded-xl bg-brand-500 text-slate-950 font-bold text-xs hover:bg-brand-400 transition">Save</button>
+            </div>
+            <div id="settingsTestResult" class="text-xs mt-3"></div>
+            <div class="text-[11px] text-slate-500 mt-4 pt-3 border-t border-white/5 leading-relaxed">
+                Running in Termux? Start it with <code class="text-slate-300">node crawler.js</code> in the crawler folder, then leave this as <code class="text-slate-300">http://127.0.0.1:5000</code>. Running the crawler on another device on your network? Use that device's LAN IP instead, e.g. <code class="text-slate-300">http://192.168.1.20:5000</code>.
+            </div>
+        </div>
+    </div>
+
+    <!-- Donate Modal (Flutterwave) -->
+    <div id="donateModal" class="fixed inset-0 z-50 bg-black/70 backdrop-blur-md flex items-center justify-center p-4 hidden">
+        <div class="glass-panel-glow rounded-2xl max-w-md w-full p-6 relative border border-pink-500/20">
+            <button onclick="closeDonateModal()" class="absolute top-4 right-4 text-slate-400 hover:text-white p-1 text-base">
+                <i class="fa-solid fa-xmark"></i>
+            </button>
+            <div class="flex items-center gap-3 mb-2">
+                <div class="w-11 h-11 rounded-xl bg-pink-500/15 flex items-center justify-center text-pink-400 text-xl shrink-0">
+                    <i class="fa-solid fa-mug-hot"></i>
+                </div>
+                <div>
+                    <h3 class="text-base font-bold text-white">Support MapMiner</h3>
+                    <p class="text-[11px] text-slate-400">Built solo, kept free. Whatever helps.</p>
+                </div>
+            </div>
+            <p class="text-xs text-slate-400 mb-4 leading-relaxed">Every tip goes straight into the next feature — new lead categories, better exports, whatever the community asks for most. No account, no subscription, just a one-time thank-you.</p>
+
+            <!-- Currency toggle -->
+            <div class="grid grid-cols-4 gap-1.5 mb-3" id="donateCurrencyGrid"></div>
+
+            <!-- Preset amount anchors -->
+            <div class="grid grid-cols-4 gap-2 mb-3" id="donateAmountGrid">
+                <!-- populated via JS based on currency -->
+            </div>
+
+            <div class="mb-3">
+                <label class="block text-xs font-medium text-slate-400 mb-1">Or enter your own amount</label>
+                <input id="donateCustomAmount" type="number" min="1" placeholder="Custom amount" class="w-full px-3 py-2 rounded-xl glass-input text-sm focus:ring-1 focus:ring-brand-400" />
+            </div>
+
+            <div class="mb-4">
+                <label class="block text-xs font-medium text-slate-400 mb-1">Email (for your payment receipt)</label>
+                <input id="donateEmail" type="email" placeholder="you@example.com" class="w-full px-3 py-2 rounded-xl glass-input text-sm focus:ring-1 focus:ring-brand-400" />
+            </div>
+
+            <button onclick="submitDonation()" id="donateSubmitBtn" class="w-full py-3 rounded-xl bg-gradient-to-r from-pink-500 to-rose-500 text-white font-bold text-sm hover:opacity-90 transition flex items-center justify-center gap-2">
+                <i class="fa-solid fa-heart"></i>
+                <span id="donateSubmitLabel">Send Support</span>
+            </button>
+            <p class="text-[10px] text-slate-500 mt-2 text-center">Secured by Flutterwave. This is a personal tip — not a purchase, refunds aren't applicable.</p>
+        </div>
+    </div>
+
+    <!-- Persistent Floating Support Button (placement #3 — always available, low-friction) -->
+    <button onclick="openDonateModal('float')" id="floatDonateBtn" class="fixed bottom-5 left-5 z-40 w-12 h-12 rounded-full bg-gradient-to-br from-pink-500 to-rose-500 text-white shadow-lg shadow-pink-500/30 hover:scale-105 transition flex items-center justify-center text-lg" title="Support MapMiner">
+        <i class="fa-solid fa-heart"></i>
+    </button>
+
+    <!-- Notification Toast Container -->
+    <div id="toastContainer" class="fixed bottom-5 right-5 z-50 flex flex-col gap-2"></div>
+
+    <!-- Footer -->
+    <footer class="glass-panel border-t border-white/5 py-4 px-4 text-center text-xs text-slate-500 mt-8">
+        <div class="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-2">
+            <div>
+                <strong class="text-slate-400">MapMiner Live Lead Vault</strong> — Built and maintained by one person. Free forever.
+            </div>
+            <div class="flex items-center gap-4">
+                <span class="text-slate-400"><i class="fa-solid fa-database mr-1"></i> Vault stored on-device</span>
+                <button onclick="openDonateModal('footer')" class="text-pink-400 hover:text-pink-300 font-semibold flex items-center gap-1">
+                    <i class="fa-solid fa-heart"></i> Buy me a coffee
+                </button>
+            </div>
+        </div>
+    </footer>
+
+    <script>
+        /* MapMiner Core Application State & Storage */
+        const STORAGE_KEYS = {
+            SAVED_LEADS: 'mapminer_saved_leads_v1',
+            CUSTOM_LEADS: 'mapminer_custom_leads_v1',
+            SEARCH_HISTORY: 'mapminer_search_history_v2',
+            USER_PREFS: 'mapminer_user_prefs_v1',
+            API_BASE: 'mapminer_api_base_v1',
+            LEAD_NOTES: 'mapminer_lead_notes_v1',
+            DONATE_SEEN: 'mapminer_donate_banner_seen_v1'
+        };
+
+        const DEFAULT_API_BASE = 'http://127.0.0.1:5000';
+
+        // Quick Pick Recommendations Preset — these now trigger a real live search.
+        // Deliberately spread across many job types AND many regions/cities so a
+        // reload doesn't always show the same handful of targets.
+        const QUICK_PICKS = [
+            { label: "Gyms", cat: "gym", city: "London" },
+            { label: "Cafes", cat: "cafe", city: "Paris" },
+            { label: "Dentists", cat: "dentist", city: "Toronto" },
+            { label: "Salons", cat: "salon", city: "Lagos" },
+            { label: "Lawyers", cat: "lawyer", city: "Chicago" },
+            { label: "Auto Repair", cat: "auto_repair", city: "Houston" },
+            { label: "Hotels", cat: "hotel", city: "Sydney" },
+            { label: "Real Estate", cat: "real_estate", city: "Miami" },
+            { label: "Accountants", cat: "accountant", city: "New York" },
+            { label: "Insurance Agents", cat: "insurance_agent", city: "Manchester" },
+            { label: "Architects", cat: "architect", city: "Berlin" },
+            { label: "Veterinarians", cat: "veterinarian", city: "Dublin" },
+            { label: "Physiotherapists", cat: "physiotherapist", city: "Melbourne" },
+            { label: "Opticians", cat: "optician", city: "Amsterdam" },
+            { label: "Pharmacies", cat: "pharmacy", city: "Nairobi" },
+            { label: "Barbers", cat: "barber", city: "Accra" },
+            { label: "Spas", cat: "spa", city: "Dubai" },
+            { label: "Tattoo Studios", cat: "tattoo_studio", city: "Berlin" },
+            { label: "Marketing Agencies", cat: "marketing_agency", city: "Austin" },
+            { label: "IT Support", cat: "it_support", city: "Bangalore" },
+            { label: "Coworking Spaces", cat: "coworking_space", city: "Lisbon" },
+            { label: "Travel Agencies", cat: "travel_agency", city: "Cairo" },
+            { label: "Recruitment Agencies", cat: "recruitment_agency", city: "Toronto" },
+            { label: "Car Dealers", cat: "car_dealer", city: "Los Angeles" },
+            { label: "Tire Shops", cat: "tire_shop", city: "Dallas" },
+            { label: "Electricians", cat: "electrician", city: "Sydney" },
+            { label: "Plumbers", cat: "plumber", city: "Chicago" },
+            { label: "HVAC Techs", cat: "hvac", city: "Phoenix" },
+            { label: "Painters", cat: "painter", city: "Vancouver" },
+            { label: "Locksmiths", cat: "locksmith", city: "Johannesburg" },
+            { label: "Roofers", cat: "roofer", city: "Dallas" },
+            { label: "Landscapers", cat: "landscaping", city: "Denver" },
+            { label: "Cleaning Services", cat: "cleaning_service", city: "Boston" },
+            { label: "Moving Companies", cat: "moving_company", city: "Seattle" },
+            { label: "Jewelers", cat: "jeweler", city: "Mumbai" },
+            { label: "Furniture Stores", cat: "furniture_store", city: "Warsaw" },
+            { label: "Electronics Stores", cat: "electronics_store", city: "Singapore" },
+            { label: "Mobile Repair", cat: "mobile_repair", city: "Lagos" },
+            { label: "Bike Shops", cat: "bike_shop", city: "Copenhagen" },
+            { label: "Pet Stores", cat: "pet_store", city: "Auckland" },
+            { label: "Florists", cat: "florist", city: "Rome" },
+            { label: "Bakeries", cat: "bakery", city: "Vienna" },
+            { label: "Photographers", cat: "photographer", city: "Cape Town" },
+            { label: "Driving Schools", cat: "driving_school", city: "Nairobi" },
+            { label: "Daycares", cat: "daycare", city: "Edinburgh" }
+        ];
+
+        // Global State Variables
+        let customLeads = [];    // imported / manually added leads — persisted in LocalStorage
+        let currentLeads = [];   // results from the most recent live search
+        let filteredLeads = [];
+        let savedLeads = [];
+        let leadNotes = {};      // { [leadKey]: { note, tag } } — persisted locally
+        let sessionLeadCount = 0;
+        let apiBase = DEFAULT_API_BASE;
+        let donateCurrency = 'USD';
+
+        function getAllLeads() {
+            return currentLeads.concat(customLeads);
+        }
+
+        /* Stable key for a lead (works for live OSM leads and custom/imported ones) */
+        function leadKey(lead) {
+            return lead.id || `${lead.name}|${lead.address}`;
+        }
+
+        /* Initialization on Window Load */
+        window.onload = function() {
+            apiBase = localStorage.getItem(STORAGE_KEYS.API_BASE) || DEFAULT_API_BASE;
+            document.getElementById('apiBaseInput').value = apiBase;
+            loadLeadNotesFromStorage();
+            loadCustomLeadsFromStorage();
+            loadQuickPills();
+            loadSavedLeadsFromStorage();
+            updateStorageMetrics();
+            checkCrawlerConnection();
+            setupKeyboardShortcuts();
+            setDonateCurrency('USD');
+            document.addEventListener('click', (e) => {
+                const menu = document.getElementById('bulkMenu');
+                if (menu && !menu.classList.contains('hidden') && !e.target.closest('#bulkMenu') && !e.target.closest('[onclick="toggleBulkMenu()"]')) {
+                    menu.classList.add('hidden');
+                }
+            });
+        };
+
+        /* Render Quick Pick Pills */
+        /* QUICK_PICKS is large now (many job types x many cities), so show a random
+           sample plus a shuffle pill rather than dumping 40+ buttons at once. */
+        function loadQuickPills() {
+            const container = document.getElementById('quickPillsContainer');
+            container.innerHTML = '';
+
+            const sample = [...QUICK_PICKS].sort(() => Math.random() - 0.5).slice(0, 10);
+
+            sample.forEach(item => {
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.className = 'px-2.5 py-1 rounded-lg bg-slate-800/80 hover:bg-brand-500/20 hover:border-brand-500/40 border border-slate-700 text-xs text-slate-300 transition cursor-pointer flex items-center gap-1.5';
+                btn.innerHTML = `<i class="fa-solid fa-magnifying-glass text-[10px] text-brand-400"></i> ${item.label} <span class="text-slate-500">· ${item.city}</span>`;
+                btn.onclick = () => {
+                    document.getElementById('categoryInput').value = item.cat;
+                    document.getElementById('locationInput').value = item.city;
+                    document.getElementById('searchForm').dispatchEvent(new Event('submit'));
+                };
+                container.appendChild(btn);
+            });
+
+            const shuffleBtn = document.createElement('button');
+            shuffleBtn.type = 'button';
+            shuffleBtn.className = 'px-2.5 py-1 rounded-lg bg-slate-800/40 hover:bg-slate-700/60 border border-dashed border-slate-600 text-xs text-slate-400 transition cursor-pointer flex items-center gap-1.5';
+            shuffleBtn.innerHTML = `<i class="fa-solid fa-shuffle text-[10px]"></i> More (${QUICK_PICKS.length} total)`;
+            shuffleBtn.onclick = () => loadQuickPills();
+            container.appendChild(shuffleBtn);
+        }
+
+        /* --- Keyboard Shortcuts (no API needed) --- */
+        function setupKeyboardShortcuts() {
+            document.addEventListener('keydown', (e) => {
+                const tag = (e.target.tagName || '').toLowerCase();
+                const typing = tag === 'input' || tag === 'textarea';
+                if (e.key === '/' && !typing) {
+                    e.preventDefault();
+                    document.getElementById('categoryInput').focus();
+                }
+                if (e.key === 'Escape') {
+                    ['leadModal', 'importModal', 'addLeadModal', 'settingsModal', 'donateModal'].forEach(id => {
+                        document.getElementById(id).classList.add('hidden');
+                    });
+                }
+            });
+        }
+
+        /* --- Crawler Connection (Settings) --- */
+        function toggleSettingsModal() {
+            document.getElementById('settingsModal').classList.toggle('hidden');
+        }
+
+        function saveApiBaseUrl() {
+            const val = document.getElementById('apiBaseInput').value.trim().replace(/\/$/, '');
+            if (!val) { showToast("Enter a valid API base URL", "error"); return; }
+            apiBase = val;
+            localStorage.setItem(STORAGE_KEYS.API_BASE, val);
+            showToast("Crawler endpoint saved", "success");
+            checkCrawlerConnection();
+        }
+
+        async function checkCrawlerConnection() {
+            const dot = document.getElementById('connDot');
+            const text = document.getElementById('connStatusText');
+            text.innerText = 'Checking crawler…';
+            dot.className = 'fa-solid fa-circle text-[8px] text-slate-500';
+            try {
+                const res = await fetchWithTimeout(`${apiBase}/api/health`, 4000);
+                if (!res.ok) throw new Error('bad status');
+                dot.className = 'fa-solid fa-circle text-[8px] text-emerald-400';
+                text.innerText = 'Crawler connected';
+                return true;
+            } catch (err) {
+                dot.className = 'fa-solid fa-circle text-[8px] text-red-400';
+                text.innerText = 'Crawler offline';
+                return false;
+            }
+        }
+
+        async function testCrawlerConnection() {
+            const val = document.getElementById('apiBaseInput').value.trim().replace(/\/$/, '');
+            const resultEl = document.getElementById('settingsTestResult');
+            resultEl.innerHTML = `<span class="text-slate-400"><i class="fa-solid fa-spinner animate-spin"></i> Testing ${escapeHtml(val)}…</span>`;
+            try {
+                const res = await fetchWithTimeout(`${val}/api/health`, 4000);
+                if (!res.ok) throw new Error('bad status');
+                resultEl.innerHTML = `<span class="text-emerald-400"><i class="fa-solid fa-circle-check"></i> Connected — crawler is reachable.</span>`;
+            } catch (err) {
+                resultEl.innerHTML = `<span class="text-red-400"><i class="fa-solid fa-circle-exclamation"></i> Couldn't reach it. Is <code>node crawler.js</code> running?</span>`;
+            }
+        }
+
+        /* fetch() with a timeout so a dead/unreachable crawler fails fast instead of hanging */
+        function fetchWithTimeout(url, timeoutMs = 12000, options = {}) {
+            const controller = new AbortController();
+            const timer = setTimeout(() => controller.abort(), timeoutMs);
+            return fetch(url, { ...options, signal: controller.signal }).finally(() => clearTimeout(timer));
+        }
+
+        /* Main Search Workflow — hits the local crawler's /api/search (geocode + live Overpass leads) */
+        async function handleSearch(e) {
+            e.preventDefault();
+
+            const categoryText = document.getElementById('categoryInput').value.trim();
+            const locationText = document.getElementById('locationInput').value.trim();
+            const radius = document.getElementById('radiusInput').value;
+
+            if (!categoryText || !locationText) {
+                showToast("Please enter both business category and location", "error");
+                return;
+            }
+
+            const searchBtn = document.getElementById('searchBtn');
+            const mapStatusText = document.getElementById('mapStatusText');
+
+            searchBtn.disabled = true;
+            searchBtn.innerHTML = `<i class="fa-solid fa-spinner animate-spin"></i> Searching...`;
+            mapStatusText.innerText = "Contacting crawler...";
+
+            try {
+                const url = `${apiBase}/api/search?location=${encodeURIComponent(locationText)}&category=${encodeURIComponent(categoryText)}&radius=${radius}`;
+                const res = await fetchWithTimeout(url, 30000);
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.error || `Server responded ${res.status}`);
+
+                const normalized = normalizeLiveLeads(data.leads, categoryText);
+                currentLeads = normalized;
+                sessionLeadCount += normalized.length;
+                document.getElementById('statSessionLeads').innerText = sessionLeadCount;
+                saveSearchHistory(categoryText, locationText);
+
+                applyFilters();
+                renderRadar(currentLeads, { lat: data.location.lat, lon: data.location.lon });
+                setResultsSourceBadge(data.source);
+
+                if (normalized.length === 0) {
+                    showToast(`No results for "${categoryText}" near "${locationText}". Try a bigger radius.`, "info");
+                    mapStatusText.innerText = "No matches found";
+                } else {
+                    showToast(`Found ${normalized.length} live leads near ${data.location.display_name || locationText}!`, "success");
+                    mapStatusText.innerText = `Active: ${normalized.length} leads loaded`;
+                    maybeShowDonateBanner(normalized.length);
+                }
+            } catch (err) {
+                console.error("Search error:", err);
+                const offline = !(await checkCrawlerConnection());
+                if (offline) {
+                    showToast("Can't reach the crawler. Start it with 'node crawler.js' and check Settings.", "error");
+                    mapStatusText.innerText = "Crawler offline";
+                } else {
+                    showToast(`Search failed: ${err.message}`, "error");
+                    mapStatusText.innerText = "Error";
+                }
+            } finally {
+                resetSearchBtn();
+            }
+        }
+
+        /* Map raw crawler leads into the shape the UI expects, tagging verified contact fields */
+        function normalizeLiveLeads(rawLeads, category) {
+            return (rawLeads || []).map(l => ({
+                id: `${l.osm_type || 'osm'}_${l.osm_id ?? Math.random().toString(36).slice(2)}`,
+                name: l.name || 'Unnamed Business',
+                category: (l.category || category || 'general').toLowerCase(),
+                phone: l.phone || 'N/A',
+                website: l.website || 'N/A',
+                email: l.email || null,
+                address: l.address || 'Address on Request',
+                city: '',
+                lat: typeof l.lat === 'number' ? l.lat : null,
+                lon: typeof l.lon === 'number' ? l.lon : null,
+                verifiedPhone: !!l.phone,
+                verifiedWebsite: !!l.website
+            }));
+        }
+
+        function setResultsSourceBadge(source) {
+            const badge = document.getElementById('resultsSourceBadge');
+            if (!source) { badge.classList.add('hidden'); return; }
+            badge.classList.remove('hidden');
+            badge.innerText = source === 'cache' ? 'From Cache' : 'Live Fetch';
+        }
+
+        /* Recent search history — client-side only, used to power quick re-runs */
+        function saveSearchHistory(category, location) {
+            try {
+                let history = JSON.parse(localStorage.getItem(STORAGE_KEYS.SEARCH_HISTORY) || '[]');
+                history = history.filter(h => !(h.category === category && h.location === location));
+                history.unshift({ category, location, ts: Date.now() });
+                history = history.slice(0, 6);
+                localStorage.setItem(STORAGE_KEYS.SEARCH_HISTORY, JSON.stringify(history));
+            } catch (e) { /* ignore quota errors */ }
+        }
+
+        /* Haversine distance in km between two coordinates — used for "Near Me" distance sort/labels */
+        function haversineKm(lat1, lon1, lat2, lon2) {
+            const R = 6371;
+            const dLat = (lat2 - lat1) * Math.PI / 180;
+            const dLon = (lon2 - lon1) * Math.PI / 180;
+            const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon / 2) ** 2;
+            return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        }
+
+        /* "Near Me" — uses the browser's Geolocation API to get real GPS coords, then calls the
+           crawler's /api/leads directly with those coordinates for a genuinely live nearby search. */
+        function useMyLocation() {
+            if (!navigator.geolocation) {
+                showToast("Geolocation isn't supported in this browser", "error");
+                return;
+            }
+            const btn = document.getElementById('nearMeBtn');
+            btn.innerHTML = '<i class="fa-solid fa-spinner animate-spin"></i>';
+
+            navigator.geolocation.getCurrentPosition(async (pos) => {
+                const { latitude, longitude } = pos.coords;
+                const categoryText = document.getElementById('categoryInput').value.trim() || 'retail';
+                const radius = document.getElementById('radiusInput').value;
+                document.getElementById('locationInput').value = `My Location (${latitude.toFixed(3)}, ${longitude.toFixed(3)})`;
+
+                try {
+                    const url = `${apiBase}/api/leads?lat=${latitude}&lon=${longitude}&category=${encodeURIComponent(categoryText)}&radius=${radius}`;
+                    const res = await fetchWithTimeout(url, 30000);
+                    const data = await res.json();
+                    if (!res.ok) throw new Error(data.error || `Server responded ${res.status}`);
+
+                    const withDistance = normalizeLiveLeads(data.leads, categoryText).map(l => ({
+                        ...l,
+                        distanceKm: (typeof l.lat === 'number' && typeof l.lon === 'number') ? haversineKm(latitude, longitude, l.lat, l.lon) : null
+                    })).sort((a, b) => (a.distanceKm ?? 9e9) - (b.distanceKm ?? 9e9));
+
+                    currentLeads = withDistance;
+                    sessionLeadCount += withDistance.length;
+                    document.getElementById('statSessionLeads').innerText = sessionLeadCount;
+                    applyFilters();
+                    renderRadar(currentLeads, { lat: latitude, lon: longitude });
+                    setResultsSourceBadge(data.source);
+                    showToast(`Found ${withDistance.length} live leads near you`, "success");
+                    maybeShowDonateBanner(withDistance.length);
+                } catch (err) {
+                    console.error(err);
+                    showToast(`Nearby search failed: ${err.message}`, "error");
+                } finally {
+                    btn.innerHTML = '<i class="fa-solid fa-location-crosshairs"></i>';
+                }
+            }, (err) => {
+                console.warn("Geolocation error:", err);
+                btn.innerHTML = '<i class="fa-solid fa-location-crosshairs"></i>';
+                showToast("Couldn't get your location — check location permissions", "error");
+            }, { timeout: 10000 });
+        }
+
+        function resetSearchBtn() {
+            const searchBtn = document.getElementById('searchBtn');
+            searchBtn.disabled = false;
+            searchBtn.innerHTML = `<i class="fa-solid fa-bolt"></i> <span>Search Vault</span>`;
+        }
+
+        /* --- Import / Manual Add --- */
+        function toggleImportModal() { document.getElementById('importModal').classList.toggle('hidden'); }
+        function toggleAddLeadModal() { document.getElementById('addLeadModal').classList.toggle('hidden'); }
+
+        function downloadCSVTemplate() {
+            const headers = ["Name", "Category", "Phone", "Website", "Address", "Latitude", "Longitude"];
+            const example = ['"Acme Gym"', '"gym"', '"555-1234"', '"acmegym.com"', '"123 Main St, London"', '51.5074', '-0.1278'];
+            const csv = headers.join(",") + "\n" + example.join(",");
+            const blob = new Blob([csv], { type: 'text/csv' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement("a");
+            link.href = url;
+            link.download = 'MapMiner_Import_Template.csv';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+
+        function splitCSVLine(line) {
+            const result = [];
+            let cur = '', inQuotes = false;
+            for (let i = 0; i < line.length; i++) {
+                const ch = line[i];
+                if (ch === '"') {
+                    if (inQuotes && line[i + 1] === '"') { cur += '"'; i++; }
+                    else inQuotes = !inQuotes;
+                } else if (ch === ',' && !inQuotes) {
+                    result.push(cur); cur = '';
+                } else {
+                    cur += ch;
+                }
+            }
+            result.push(cur);
+            return result.map(s => s.replace(/^"|"$/g, ''));
+        }
+
+        function parseCSV(text) {
+            const lines = text.trim().split(/\r?\n/);
+            if (lines.length < 2) return [];
+            const headers = splitCSVLine(lines[0]).map(h => h.trim().toLowerCase());
+            return lines.slice(1).filter(l => l.trim()).map(line => {
+                const cols = splitCSVLine(line);
+                const obj = {};
+                headers.forEach((h, i) => obj[h] = (cols[i] || '').trim());
+                return obj;
+            });
+        }
+
+        function importPastedLeads() {
+            const raw = document.getElementById('importTextarea').value.trim();
+            if (!raw) { showToast("Paste some CSV or JSON first", "error"); return; }
+
+            let rows = [];
+            try {
+                if (raw.startsWith('[')) {
+                    const json = JSON.parse(raw);
+                    rows = json.map(o => ({
+                        name: o.name || o.Name || '',
+                        category: o.category || o.Category || '',
+                        phone: o.phone || o.Phone || '',
+                        website: o.website || o.Website || '',
+                        address: o.address || o.Address || '',
+                        latitude: o.lat ?? o.latitude ?? o.Latitude ?? '',
+                        longitude: o.lon ?? o.longitude ?? o.Longitude ?? ''
+                    }));
+                } else {
+                    rows = parseCSV(raw);
+                }
+            } catch (err) {
+                showToast("Couldn't parse that — check your CSV/JSON formatting", "error");
+                return;
+            }
+
+            let added = 0;
+            rows.forEach((r) => {
+                const name = r.name || r.Name;
+                if (!name) return;
+                const lat = parseFloat(r.latitude ?? r.lat);
+                const lon = parseFloat(r.longitude ?? r.lon);
+                const phone = r.phone || 'N/A';
+                const website = r.website || 'N/A';
+                customLeads.push({
+                    id: `custom_${Date.now()}_${added}_${Math.floor(Math.random() * 1000)}`,
+                    name,
+                    category: (r.category || 'general').toLowerCase(),
+                    phone,
+                    website,
+                    address: r.address || 'Address on Request',
+                    city: r.city || '',
+                    lat: isNaN(lat) ? null : lat,
+                    lon: isNaN(lon) ? null : lon,
+                    verifiedPhone: phone !== 'N/A' && phone !== '',
+                    verifiedWebsite: website !== 'N/A' && website !== ''
+                });
+                added++;
+            });
+
+            if (added === 0) {
+                showToast("No valid leads found in that input", "error");
+                return;
+            }
+
+            saveCustomLeadsToStorage();
+            document.getElementById('importTextarea').value = '';
+            toggleImportModal();
+            showToast(`Imported ${added} lead(s) into your vault`, "success");
+        }
+
+        function submitManualLead(e) {
+            e.preventDefault();
+            const name = document.getElementById('mlName').value.trim();
+            const category = document.getElementById('mlCategory').value.trim().toLowerCase();
+            const phone = document.getElementById('mlPhone').value.trim() || 'N/A';
+            const website = document.getElementById('mlWebsite').value.trim() || 'N/A';
+            const address = document.getElementById('mlAddress').value.trim() || 'Address on Request';
+            const latRaw = document.getElementById('mlLat').value;
+            const lonRaw = document.getElementById('mlLon').value;
+
+            customLeads.push({
+                id: `custom_${Date.now()}`,
+                name, category, phone, website, address,
+                city: '',
+                lat: latRaw ? parseFloat(latRaw) : null,
+                lon: lonRaw ? parseFloat(lonRaw) : null,
+                verifiedPhone: phone !== 'N/A',
+                verifiedWebsite: website !== 'N/A'
+            });
+
+            saveCustomLeadsToStorage();
+            e.target.reset();
+            toggleAddLeadModal();
+            showToast(`Added "${name}" to your vault`, "success");
+        }
+
+        function saveCustomLeadsToStorage() {
+            try {
+                localStorage.setItem(STORAGE_KEYS.CUSTOM_LEADS, JSON.stringify(customLeads));
+            } catch (e) {
+                showToast("LocalStorage limit reached!", "error");
+            }
+        }
+
+        function loadCustomLeadsFromStorage() {
+            try {
+                const stored = localStorage.getItem(STORAGE_KEYS.CUSTOM_LEADS);
+                customLeads = stored ? JSON.parse(stored) : [];
+            } catch (err) {
+                console.error("Custom leads load error:", err);
+                customLeads = [];
+            }
+        }
+
+        /* Lead Quality Score — computed entirely client-side from field completeness, no API needed */
+        function computeLeadScore(lead) {
+            let points = 0;
+            if (lead.verifiedPhone) points += 2;
+            if (lead.verifiedWebsite) points += 1;
+            if (lead.address && lead.address !== 'Address on Request') points += 1;
+            if (lead.email) points += 1;
+            if (points >= 4) return { tier: 'hot', label: 'Hot', cls: 'bg-rose-500/20 text-rose-400 border-rose-500/30' };
+            if (points >= 2) return { tier: 'warm', label: 'Warm', cls: 'bg-amber-500/20 text-amber-400 border-amber-500/30' };
+            return { tier: 'cold', label: 'Cold', cls: 'bg-slate-700/50 text-slate-400 border-slate-600' };
+        }
+
+        /* Filter + Sort Results Table */
+        function applyFilters() {
+            const filterValue = document.getElementById('contactFilter').value;
+            const sortValue = document.getElementById('sortSelect').value;
+
+            filteredLeads = currentLeads.filter(lead => {
+                if (filterValue === 'has_phone') return lead.verifiedPhone;
+                if (filterValue === 'has_website') return lead.verifiedWebsite;
+                if (filterValue === 'hot') return computeLeadScore(lead).tier === 'hot';
+                return true;
+            });
+
+            const scoreRank = { hot: 2, warm: 1, cold: 0 };
+            if (sortValue === 'score') {
+                filteredLeads = [...filteredLeads].sort((a, b) => scoreRank[computeLeadScore(b).tier] - scoreRank[computeLeadScore(a).tier]);
+            } else if (sortValue === 'name') {
+                filteredLeads = [...filteredLeads].sort((a, b) => a.name.localeCompare(b.name));
+            } else if (sortValue === 'distance') {
+                filteredLeads = [...filteredLeads].sort((a, b) => (a.distanceKm ?? 9e9) - (b.distanceKm ?? 9e9));
+            }
+
+            document.getElementById('resultsCountBadge').innerText = `${filteredLeads.length} items`;
+            renderResultsTable(filteredLeads);
+        }
+
+        /* Render Results Table HTML */
+        function renderResultsTable(leads) {
+            const container = document.getElementById('resultsContainer');
+            if (leads.length === 0) {
+                container.innerHTML = `
+                    <div class="h-full flex flex-col items-center justify-center text-center p-8 text-slate-500">
+                        <i class="fa-solid fa-filter-circle-xmark text-3xl mb-2 text-slate-600"></i>
+                        <p class="text-xs">No records match the selected filter criteria.</p>
+                    </div>`;
+                return;
+            }
+
+            let html = `<div class="space-y-2.5">`;
+
+            leads.forEach((lead, idx) => {
+                // Inline in-feed donation card — placed every 6 results so it's genuinely
+                // visible while scrolling, but never more than once per short list.
+                if (idx > 0 && idx % 6 === 0) {
+                    html += `
+                        <div class="p-3 rounded-xl border border-pink-500/20 bg-pink-500/5 flex items-center justify-between gap-3">
+                            <div class="flex items-center gap-2.5 min-w-0">
+                                <i class="fa-solid fa-heart text-pink-400 shrink-0"></i>
+                                <p class="text-xs text-slate-300 truncate">Finding good leads here? A small tip keeps MapMiner free and improving.</p>
+                            </div>
+                            <button onclick="openDonateModal('results_feed')" class="shrink-0 px-3 py-1.5 rounded-lg bg-pink-500/20 hover:bg-pink-500/30 border border-pink-500/30 text-pink-300 text-xs font-semibold transition">Chip In</button>
+                        </div>
+                    `;
+                }
+
+                const isSaved = savedLeads.some(s => s.id === lead.id);
+                const score = computeLeadScore(lead);
+                const note = leadNotes[leadKey(lead)];
+                const whatsappNumber = (lead.phone || '').replace(/[^\d+]/g, '');
+
+                html += `
+                    <div class="p-3.5 rounded-xl glass-panel hover:border-brand-500/40 transition flex flex-col sm:flex-row sm:items-center justify-between gap-3 group">
+                        <div class="space-y-1 min-w-0">
+                            <div class="flex items-center gap-2 flex-wrap">
+                                <h4 class="font-bold text-sm text-white group-hover:text-brand-400 transition cursor-pointer" onclick="openLeadModal('${lead.id}')">${escapeHtml(lead.name)}</h4>
+                                <span class="px-2 py-0.5 rounded text-[10px] font-semibold bg-slate-800 text-slate-300 border border-slate-700">${escapeHtml(lead.category)}</span>
+                                <span class="px-2 py-0.5 rounded text-[10px] font-semibold border ${score.cls}">${score.label}</span>
+                                ${typeof lead.distanceKm === 'number' ? `<span class="px-2 py-0.5 rounded text-[10px] font-semibold bg-slate-800 text-slate-400 border border-slate-700">${lead.distanceKm.toFixed(1)} km</span>` : ''}
+                            </div>
+                            <div class="flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-400">
+                                <span><i class="fa-solid fa-location-dot text-slate-500 mr-1"></i>${escapeHtml(lead.address)}</span>
+                                <span>
+                                    <i class="fa-solid fa-phone text-slate-500 mr-1"></i>
+                                    ${lead.verifiedPhone ? `<strong class="text-emerald-400">${escapeHtml(lead.phone)}</strong>` : '<span class="text-slate-600">No phone</span>'}
+                                </span>
+                            </div>
+                            ${note ? `<div class="text-[11px] text-brand-300 italic truncate"><i class="fa-solid fa-note-sticky mr-1"></i>${escapeHtml(note)}</div>` : ''}
+                        </div>
+
+                        <div class="flex items-center gap-1.5 self-end sm:self-center flex-wrap">
+                            ${lead.verifiedPhone ? `
+                                <a href="tel:${escapeHtml(lead.phone)}" class="p-2 rounded-lg bg-slate-800 hover:bg-emerald-500/20 hover:text-emerald-400 text-slate-300 text-xs transition" title="Call"><i class="fa-solid fa-phone"></i></a>
+                                <a href="https://wa.me/${escapeHtml(whatsappNumber)}" target="_blank" class="p-2 rounded-lg bg-slate-800 hover:bg-emerald-500/20 hover:text-emerald-400 text-slate-300 text-xs transition" title="WhatsApp"><i class="fa-brands fa-whatsapp"></i></a>
+                            ` : ''}
+                            ${lead.verifiedWebsite ? `
+                                <a href="${escapeHtml(lead.website)}" target="_blank" class="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs transition flex items-center" title="Visit Website">
+                                    <img src="${getFaviconUrl(lead.website)}" alt="" class="w-3.5 h-3.5" onerror="this.style.display='none'" />
+                                </a>
+                            ` : ''}
+
+                            <button onclick="promptLeadNote('${lead.id}')" class="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 text-xs transition" title="Add note / outreach draft">
+                                <i class="fa-solid fa-note-sticky"></i>
+                            </button>
+
+                            ${score.tier === 'hot' ? `
+                                <button onclick="openDonateModal('hot_lead_row')" class="p-2 rounded-lg bg-slate-800 hover:bg-pink-500/20 hover:text-pink-400 text-slate-500 text-xs transition" title="This one's a great lead — support the tool?">
+                                    <i class="fa-solid fa-heart"></i>
+                                </button>
+                            ` : ''}
+
+                            <button onclick="toggleBookmarkLead('${lead.id}')" class="p-2 rounded-lg ${isSaved ? 'bg-amber-500/20 text-amber-400 border border-amber-500/40' : 'bg-slate-800 hover:bg-slate-700 text-slate-400'} text-xs transition" title="Save Lead">
+                                <i class="fa-solid fa-bookmark"></i>
+                            </button>
+
+                            <button onclick="openLeadModal('${lead.id}')" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-brand-500 hover:text-slate-950 font-semibold text-xs text-slate-200 transition">
+                                Inspect
+                            </button>
+                        </div>
+                    </div>
+                `;
+            });
+
+            html += `</div>`;
+            container.innerHTML = html;
+        }
+
+        /* Render the offline SVG radar — positions are relative to the plotted leads
+           themselves (or an optional center point), not real map tiles. No network calls. */
+        function renderRadar(leads, center) {
+            const container = document.getElementById('radar');
+            const withCoords = leads.filter(l => typeof l.lat === 'number' && typeof l.lon === 'number' && !isNaN(l.lat) && !isNaN(l.lon));
+
+            if (withCoords.length === 0) {
+                container.innerHTML = `
+                    <div class="h-full flex flex-col items-center justify-center text-center p-6 text-slate-600">
+                        <i class="fa-solid fa-satellite-dish text-2xl mb-2"></i>
+                        <p class="text-xs">No geolocated leads to plot yet.<br/>Leads without coordinates still show up in the results list.</p>
+                    </div>`;
+                return;
+            }
+
+            const lats = withCoords.map(l => l.lat).concat(center ? [center.lat] : []);
+            const lons = withCoords.map(l => l.lon).concat(center ? [center.lon] : []);
+            const minLat = Math.min(...lats), maxLat = Math.max(...lats);
+            const minLon = Math.min(...lons), maxLon = Math.max(...lons);
+            const spanLat = (maxLat - minLat) || 0.02;
+            const spanLon = (maxLon - minLon) || 0.02;
+            const size = 400, margin = 36;
+
+            const project = (lat, lon) => ({
+                x: margin + ((lon - minLon) / spanLon) * (size - 2 * margin),
+                y: margin + (1 - (lat - minLat) / spanLat) * (size - 2 * margin)
+            });
+
+            let svg = `<svg viewBox="0 0 ${size} ${size}" class="w-full h-full">`;
+            svg += `<circle class="radar-ring" cx="${size / 2}" cy="${size / 2}" r="${size / 2 - 8}" />`;
+            svg += `<circle class="radar-ring" cx="${size / 2}" cy="${size / 2}" r="${size / 3}" />`;
+            svg += `<circle class="radar-ring" cx="${size / 2}" cy="${size / 2}" r="${size / 6}" />`;
+
+            if (center) {
+                const c = project(center.lat, center.lon);
+                svg += `<circle cx="${c.x}" cy="${c.y}" r="5" fill="#3b82f6" stroke="#fff" stroke-width="1.5" />`;
+                svg += `<text x="${c.x}" y="${c.y - 10}" font-size="9" fill="#93c5fd" text-anchor="middle">You</text>`;
+            }
+
+            withCoords.forEach(lead => {
+                const p = project(lead.lat, lead.lon);
+                svg += `<circle class="radar-dot" cx="${p.x}" cy="${p.y}" r="6" onclick="openLeadModal('${lead.id}')"><title>${escapeHtml(lead.name)}</title></circle>`;
+            });
+
+            svg += `</svg>`;
+            container.innerHTML = svg;
+        }
+
+        /* Persistent LocalStorage Management */
+        function loadSavedLeadsFromStorage() {
+            try {
+                const stored = localStorage.getItem(STORAGE_KEYS.SAVED_LEADS);
+                savedLeads = stored ? JSON.parse(stored) : [];
+                updateSavedBadge();
+                renderSavedVault();
+            } catch (err) {
+                console.error("LocalStorage load error:", err);
+                savedLeads = [];
+            }
+        }
+
+        function toggleBookmarkLead(leadId) {
+            const lead = currentLeads.find(l => l.id === leadId) || savedLeads.find(l => l.id === leadId) || customLeads.find(l => l.id === leadId);
+            if (!lead) return;
+
+            const existingIndex = savedLeads.findIndex(s => s.id === leadId);
+
+            if (existingIndex >= 0) {
+                savedLeads.splice(existingIndex, 1);
+                showToast("Removed lead from Vault", "info");
+            } else {
+                // Duplicate detection: same name + address already saved (different id, e.g. re-fetched from OSM)
+                const dupe = savedLeads.some(s => s.name.toLowerCase() === lead.name.toLowerCase() && s.address.toLowerCase() === lead.address.toLowerCase());
+                savedLeads.push(lead);
+                showToast(dupe ? `Saved "${lead.name}" (looks like a possible duplicate — check your Vault)` : "Saved lead to Vault!", dupe ? "info" : "success");
+            }
+
+            // Save explicitly to LocalStorage
+            try {
+                localStorage.setItem(STORAGE_KEYS.SAVED_LEADS, JSON.stringify(savedLeads));
+            } catch (e) {
+                showToast("LocalStorage limit reached!", "error");
+            }
+
+            updateSavedBadge();
+            renderSavedVault();
+            updateStorageMetrics();
+            applyFilters();
+        }
+
+        function updateSavedBadge() {
+            document.getElementById('savedBadgeCount').innerText = savedLeads.length;
+            document.getElementById('savedVaultCounter').innerText = `${savedLeads.length} saved leads`;
+        }
+
+        function updateStorageMetrics() {
+            document.getElementById('storageItemCount').innerText = savedLeads.length;
+            const vaultStat = document.getElementById('statVaultCount');
+            if (vaultStat) vaultStat.innerText = savedLeads.length;
+        }
+
+        function renderSavedVault() {
+            const container = document.getElementById('savedVaultList');
+            if (savedLeads.length === 0) {
+                container.innerHTML = `
+                    <div class="text-center py-12 text-slate-500 text-xs">
+                        <i class="fa-solid fa-folder-open text-2xl mb-2 text-slate-600 block"></i>
+                        Vault is empty. Bookmark leads from pipeline results.
+                    </div>`;
+                return;
+            }
+
+            let html = '';
+            savedLeads.forEach(lead => {
+                html += `
+                    <div class="p-3 rounded-xl glass-panel flex items-center justify-between gap-2">
+                        <div class="truncate">
+                            <h5 class="text-xs font-bold text-white truncate">${escapeHtml(lead.name)}</h5>
+                            <span class="text-[11px] text-slate-400 block truncate">${escapeHtml(lead.phone)} | ${escapeHtml(lead.address)}</span>
+                        </div>
+                        <button onclick="toggleBookmarkLead('${lead.id}')" class="text-red-400 hover:text-red-300 p-1 text-xs">
+                            <i class="fa-solid fa-trash"></i>
+                        </button>
+                    </div>
+                `;
+            });
+            container.innerHTML = html;
+        }
+
+        function clearSavedVault() {
+            if (confirm("Are you sure you want to clear all saved leads from LocalStorage?")) {
+                savedLeads = [];
+                localStorage.removeItem(STORAGE_KEYS.SAVED_LEADS);
+                updateSavedBadge();
+                renderSavedVault();
+                updateStorageMetrics();
+                applyFilters();
+                showToast("Vault cleared", "info");
+            }
+        }
+
+        function toggleSavedDrawer() {
+            const drawer = document.getElementById('savedDrawer');
+            drawer.classList.toggle('hidden');
+        }
+
+        /* Lead Modal Inspection */
+        function findLeadAnywhere(leadId) {
+            return currentLeads.find(l => l.id === leadId) || savedLeads.find(l => l.id === leadId) || customLeads.find(l => l.id === leadId);
+        }
+
+        function openLeadModal(leadId) {
+            const lead = findLeadAnywhere(leadId);
+            if (!lead) return;
+
+            const modal = document.getElementById('leadModal');
+            const modalContent = document.getElementById('modalContent');
+            const isSaved = savedLeads.some(s => s.id === lead.id);
+            const score = computeLeadScore(lead);
+            const existingNote = leadNotes[leadKey(lead)] || '';
+
+            modalContent.innerHTML = `
+                <div class="space-y-4">
+                    <div>
+                        <div class="flex items-center gap-2 flex-wrap">
+                            <span class="px-2 py-0.5 rounded text-[10px] font-semibold bg-brand-500/20 text-brand-400 border border-brand-500/30 uppercase">${escapeHtml(lead.category)}</span>
+                            <span class="px-2 py-0.5 rounded text-[10px] font-semibold border ${score.cls}">${score.label} Lead</span>
+                        </div>
+                        <h3 class="text-xl font-bold text-white mt-1">${escapeHtml(lead.name)}</h3>
+                    </div>
+
+                    <div class="space-y-2 text-xs text-slate-300 bg-slate-950/60 p-3.5 rounded-xl border border-white/5">
+                        <div class="flex items-start justify-between">
+                            <span class="text-slate-400"><i class="fa-solid fa-location-dot mr-1"></i> Address:</span>
+                            <span class="text-right font-medium text-white">${escapeHtml(lead.address)}</span>
+                        </div>
+                        <div class="flex items-center justify-between border-t border-white/5 pt-2">
+                            <span class="text-slate-400"><i class="fa-solid fa-phone mr-1"></i> Phone:</span>
+                            <span class="font-medium ${lead.verifiedPhone ? 'text-emerald-400' : 'text-slate-500'}">${escapeHtml(lead.phone)}</span>
+                        </div>
+                        <div class="flex items-center justify-between border-t border-white/5 pt-2">
+                            <span class="text-slate-400"><i class="fa-solid fa-globe mr-1"></i> Website:</span>
+                            <span class="font-medium truncate max-w-[200px] flex items-center gap-1.5 justify-end">
+                                ${lead.verifiedWebsite ? `<img src="${getFaviconUrl(lead.website)}" alt="" class="w-3.5 h-3.5" onerror="this.style.display='none'" /><a href="${escapeHtml(lead.website)}" target="_blank" class="text-brand-400 underline">${escapeHtml(lead.website)}</a>` : '<span class="text-slate-500">N/A</span>'}
+                            </span>
+                        </div>
+                        <div class="flex items-center justify-between border-t border-white/5 pt-2">
+                            <span class="text-slate-400"><i class="fa-solid fa-network-wired mr-1"></i> Record ID:</span>
+                            <span class="font-mono text-slate-400">${escapeHtml(lead.id)}</span>
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-medium text-slate-400 mb-1"><i class="fa-solid fa-note-sticky mr-1"></i> Your Note</label>
+                        <textarea id="modalNoteInput" rows="2" placeholder="e.g. Called 3pm, follow up Thursday" class="w-full px-3 py-2 rounded-xl glass-input text-xs focus:ring-1 focus:ring-brand-400">${escapeHtml(existingNote)}</textarea>
+                        <button onclick="saveLeadNoteFromModal('${lead.id}')" class="mt-1.5 text-[11px] text-brand-400 hover:text-brand-300 font-semibold">Save Note</button>
+                    </div>
+
+                    <div class="flex items-center gap-2 pt-1">
+                        <button onclick="toggleBookmarkLead('${lead.id}'); openLeadModal('${lead.id}')" class="flex-1 py-2 rounded-xl ${isSaved ? 'bg-amber-500/20 text-amber-400 border border-amber-500/40' : 'bg-slate-800 hover:bg-slate-700 text-slate-200'} font-bold text-xs transition flex items-center justify-center gap-2">
+                            <i class="fa-solid fa-bookmark"></i>
+                            <span>${isSaved ? 'Saved in Vault' : 'Save to Vault'}</span>
+                        </button>
+                        <button onclick="copyOutreachMessage('${lead.id}')" class="py-2 px-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs transition flex items-center gap-1.5" title="Generate a cold outreach message and copy it">
+                            <i class="fa-solid fa-envelope-open-text"></i>
+                            <span>Outreach Msg</span>
+                        </button>
+                        <button onclick="copyLeadDetails('${lead.id}')" class="py-2 px-3 rounded-xl bg-brand-500 text-slate-950 font-bold text-xs hover:bg-brand-400 transition flex items-center gap-1.5">
+                            <i class="fa-solid fa-copy"></i>
+                            <span>JSON</span>
+                        </button>
+                    </div>
+                </div>
+            `;
+
+            modal.classList.remove('hidden');
+        }
+
+        function closeLeadModal() {
+            document.getElementById('leadModal').classList.add('hidden');
+        }
+
+        function copyLeadDetails(leadId) {
+            const lead = findLeadAnywhere(leadId);
+            if (!lead) return;
+
+            const text = JSON.stringify(lead, null, 2);
+            copyTextToClipboard(text);
+            showToast("Copied lead JSON to clipboard!", "success");
+        }
+
+        /* --- Notes & Tags (client-side only, no API) --- */
+        function loadLeadNotesFromStorage() {
+            try {
+                leadNotes = JSON.parse(localStorage.getItem(STORAGE_KEYS.LEAD_NOTES) || '{}');
+            } catch (e) {
+                leadNotes = {};
+            }
+        }
+
+        function saveLeadNotesToStorage() {
+            try {
+                localStorage.setItem(STORAGE_KEYS.LEAD_NOTES, JSON.stringify(leadNotes));
+            } catch (e) {
+                showToast("LocalStorage limit reached!", "error");
+            }
+        }
+
+        function saveLeadNoteFromModal(leadId) {
+            const lead = findLeadAnywhere(leadId);
+            if (!lead) return;
+            const val = document.getElementById('modalNoteInput').value.trim();
+            if (val) leadNotes[leadKey(lead)] = val;
+            else delete leadNotes[leadKey(lead)];
+            saveLeadNotesToStorage();
+            applyFilters();
+            showToast("Note saved", "success");
+        }
+
+        /* Quick note via prompt() from the results list (faster than opening the full modal) */
+        function promptLeadNote(leadId) {
+            const lead = findLeadAnywhere(leadId);
+            if (!lead) return;
+            const current = leadNotes[leadKey(lead)] || '';
+            const val = window.prompt(`Note for ${lead.name}:`, current);
+            if (val === null) return;
+            if (val.trim()) leadNotes[leadKey(lead)] = val.trim();
+            else delete leadNotes[leadKey(lead)];
+            saveLeadNotesToStorage();
+            applyFilters();
+        }
+
+        /* --- Cold Outreach Message Generator (pure template, no API) --- */
+        function generateOutreachMessage(lead) {
+            return `Hi ${lead.name} team,\n\nI came across ${lead.name} while researching ${lead.category} businesses in your area and wanted to reach out. I help local businesses like yours [describe your offer here].\n\nWould you be open to a quick chat this week?\n\nBest,\n[Your Name]`;
+        }
+
+        function copyOutreachMessage(leadId) {
+            const lead = findLeadAnywhere(leadId);
+            if (!lead) return;
+            copyTextToClipboard(generateOutreachMessage(lead));
+            showToast("Outreach message copied — personalize the bracketed parts!", "success");
+        }
+
+        function copyTextToClipboard(text) {
+            const textarea = document.createElement('textarea');
+            textarea.value = text;
+            document.body.appendChild(textarea);
+            textarea.select();
+            document.execCommand('copy');
+            document.body.removeChild(textarea);
+        }
+
+        /* --- Bulk actions toolbar --- */
+        function toggleBulkMenu() {
+            document.getElementById('bulkMenu').classList.toggle('hidden');
+        }
+
+        function copyAllContacts(field) {
+            const values = filteredLeads
+                .map(l => field === 'phone' ? (l.verifiedPhone ? l.phone : null) : (l.verifiedWebsite ? l.website : null))
+                .filter(Boolean);
+            if (values.length === 0) {
+                showToast(`No ${field === 'phone' ? 'phone numbers' : 'websites'} in the current results`, "error");
+                return;
+            }
+            copyTextToClipboard(values.join('\n'));
+            showToast(`Copied ${values.length} ${field === 'phone' ? 'phone numbers' : 'website URLs'}`, "success");
+            document.getElementById('bulkMenu').classList.add('hidden');
+        }
+
+        function saveAllVisibleToVault() {
+            let added = 0;
+            filteredLeads.forEach(lead => {
+                if (!savedLeads.some(s => s.id === lead.id)) {
+                    savedLeads.push(lead);
+                    added++;
+                }
+            });
+            if (added > 0) {
+                try { localStorage.setItem(STORAGE_KEYS.SAVED_LEADS, JSON.stringify(savedLeads)); } catch (e) { showToast("LocalStorage limit reached!", "error"); }
+                updateSavedBadge();
+                renderSavedVault();
+                updateStorageMetrics();
+                applyFilters();
+            }
+            showToast(added > 0 ? `Saved ${added} leads to Vault` : "All visible leads are already saved", added > 0 ? "success" : "info");
+            document.getElementById('bulkMenu').classList.add('hidden');
+        }
+
+        /* CSV Export Engine */
+        function exportCurrentCSV() {
+            if (filteredLeads.length === 0) {
+                showToast("No leads available to export", "error");
+                return;
+            }
+            downloadCSV(filteredLeads, `MapMiner_Leads_Export_${new Date().toISOString().slice(0,10)}.csv`);
+        }
+
+        function exportSavedCSV() {
+            if (savedLeads.length === 0) {
+                showToast("No saved leads in vault to export", "error");
+                return;
+            }
+            downloadCSV(savedLeads, `MapMiner_Saved_Vault_${new Date().toISOString().slice(0,10)}.csv`);
+        }
+
+        function downloadCSV(dataArray, filename) {
+            const headers = ["ID", "Name", "Category", "Quality", "Phone", "Website", "Address", "Latitude", "Longitude", "Note"];
+
+            const rows = dataArray.map(item => [
+                `"${item.id}"`,
+                `"${(item.name || '').replace(/"/g, '""')}"`,
+                `"${(item.category || '').replace(/"/g, '""')}"`,
+                `"${computeLeadScore(item).label}"`,
+                `"${(item.phone || '').replace(/"/g, '""')}"`,
+                `"${(item.website || '').replace(/"/g, '""')}"`,
+                `"${(item.address || '').replace(/"/g, '""')}"`,
+                item.lat,
+                item.lon,
+                `"${(leadNotes[leadKey(item)] || '').replace(/"/g, '""')}"`
+            ]);
+
+            const csvContent = [headers.join(","), ...rows.map(e => e.join(","))].join("\n");
+            
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement("a");
+            link.setAttribute("href", url);
+            link.setAttribute("download", filename);
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+
+            showToast(`Downloaded ${dataArray.length} leads as CSV!`, "success");
+        }
+
+        /* Toast Notifications Handler */
+        function showToast(message, type = "info") {
+            const container = document.getElementById('toastContainer');
+            const toast = document.createElement('div');
+            
+            const bgClass = type === 'success' ? 'bg-emerald-900/90 border-emerald-500 text-emerald-200' :
+                            type === 'error' ? 'bg-rose-900/90 border-rose-500 text-rose-200' :
+                            'bg-slate-800/90 border-slate-600 text-slate-200';
+
+            toast.className = `px-4 py-2.5 rounded-xl border text-xs font-semibold shadow-xl backdrop-blur-md flex items-center gap-2 transition-all duration-300 transform translate-y-2 opacity-0 ${bgClass}`;
+            toast.innerHTML = `<i class="fa-solid ${type === 'success' ? 'fa-circle-check' : type === 'error' ? 'fa-circle-exclamation' : 'fa-circle-info'}"></i> <span>${message}</span>`;
+
+            container.appendChild(toast);
+
+            setTimeout(() => {
+                toast.classList.remove('translate-y-2', 'opacity-0');
+            }, 10);
+
+            setTimeout(() => {
+                toast.classList.add('opacity-0', 'translate-y-2');
+                setTimeout(() => toast.remove(), 300);
+            }, 3500);
+        }
+
+        /* Generate a small colored initial-letter badge entirely in-browser (data: URI) —
+           no network request, unlike a hosted favicon service. */
+        function getFaviconUrl(website) {
+            try {
+                const domain = website.replace(/^https?:\/\//, '').split('/')[0];
+                const letter = (domain[0] || '?').toUpperCase();
+                const palette = ['#10b981', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6', '#14b8a6', '#ec4899'];
+                const color = palette[domain.charCodeAt(0) % palette.length];
+                const svg = `<svg xmlns='http://www.w3.org/2000/svg' width='32' height='32'><rect width='32' height='32' rx='7' fill='${color}'/><text x='16' y='22' font-size='15' font-family='sans-serif' font-weight='bold' fill='white' text-anchor='middle'>${letter}</text></svg>`;
+                return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
+            } catch (err) {
+                return '';
+            }
+        }
+
+        /* Helper Utilities */
+        function capitalize(str) {
+            return str.charAt(0).toUpperCase() + str.slice(1);
+        }
+
+        function escapeHtml(str) {
+            if (!str) return '';
+            return String(str)
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;")
+                .replace(/'/g, "&#039;");
+        }
+
+        /* =========================================================
+           Donation / Support Flow (Flutterwave Inline Checkout)
+           Placements: header button, contextual post-search banner,
+           floating action button, and footer link. Reciprocity-based:
+           the ask shows *after* value was delivered, is always
+           dismissible, and never blocks core functionality.
+        ========================================================= */
+
+        const FLW_PUBLIC_KEY = "FLWPUBK-dd100b4d2c581d4f9034b139ff402410-X";
+
+        // Order matters here — it's the display order of the currency toggle too.
+        const CURRENCY_ORDER = ['USD', 'EUR', 'GBP', 'NGN'];
+        const CURRENCY_SYMBOLS = { USD: '$', EUR: '€', GBP: '£', NGN: '₦' };
+        const CURRENCY_LABELS = { USD: 'USD', EUR: 'Euro', GBP: 'GBP', NGN: 'Naira' };
+        const DONATE_PRESETS = {
+            USD: [3, 5, 10, 25],
+            EUR: [3, 5, 10, 25],
+            GBP: [2, 5, 10, 20],
+            NGN: [1000, 2500, 5000, 10000]
+        };
+
+        function renderDonateCurrencyToggle() {
+            const grid = document.getElementById('donateCurrencyGrid');
+            grid.innerHTML = '';
+            const activeCls = 'bg-brand-500/20 border-brand-500/50 text-brand-300';
+            const inactiveCls = 'bg-slate-800/60 border-slate-700 text-slate-400 hover:border-slate-600';
+            CURRENCY_ORDER.forEach(code => {
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.id = `curBtn${code}`;
+                btn.className = `py-1.5 rounded-lg text-xs font-semibold border transition ${code === donateCurrency ? activeCls : inactiveCls}`;
+                btn.innerText = `${CURRENCY_SYMBOLS[code]} ${CURRENCY_LABELS[code]}`;
+                btn.onclick = () => setDonateCurrency(code);
+                grid.appendChild(btn);
+            });
+        }
+
+        function setDonateCurrency(currency) {
+            donateCurrency = currency;
+            renderDonateCurrencyToggle();
+
+            const grid = document.getElementById('donateAmountGrid');
+            grid.innerHTML = '';
+            DONATE_PRESETS[currency].forEach((amt, idx) => {
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                // Middle-ish preset gets a subtle highlight — a gentle anchor toward a
+                // comfortable-but-meaningful amount, never a fake "most popular" claim.
+                const highlight = idx === 1;
+                btn.className = `py-2 rounded-lg text-xs font-bold border transition ${highlight ? 'bg-pink-500/15 border-pink-500/40 text-pink-300' : 'bg-slate-800/60 border-slate-700 text-slate-300 hover:border-slate-600'}`;
+                btn.innerText = `${CURRENCY_SYMBOLS[currency]}${amt.toLocaleString()}`;
+                btn.onclick = () => {
+                    document.getElementById('donateCustomAmount').value = amt;
+                    [...grid.children].forEach(c => c.classList.remove('ring-2', 'ring-pink-400'));
+                    btn.classList.add('ring-2', 'ring-pink-400');
+                };
+                grid.appendChild(btn);
+            });
+        }
+
+        function openDonateModal(source) {
+            document.getElementById('donateModal').classList.remove('hidden');
+            document.getElementById('donateModal').dataset.source = source || 'unknown';
+        }
+
+        function closeDonateModal() {
+            document.getElementById('donateModal').classList.add('hidden');
+        }
+
+        function dismissDonateBanner() {
+            document.getElementById('donateBanner').classList.add('hidden');
+            localStorage.setItem(STORAGE_KEYS.DONATE_SEEN, '1');
+        }
+
+        /* Shown once per browser, the first time a search actually returns results —
+           reciprocity: ask only after real value was delivered, not on page load. */
+        function maybeShowDonateBanner(resultCount) {
+            if (resultCount <= 0) return;
+            if (localStorage.getItem(STORAGE_KEYS.DONATE_SEEN)) return;
+            const banner = document.getElementById('donateBanner');
+            document.getElementById('donateBannerHeadline').innerText = `Nice — that just found you ${resultCount} real lead${resultCount === 1 ? '' : 's'} in seconds.`;
+            banner.classList.remove('hidden');
+        }
+
+        function submitDonation() {
+            const customVal = parseFloat(document.getElementById('donateCustomAmount').value);
+            const email = document.getElementById('donateEmail').value.trim();
+
+            if (!customVal || customVal <= 0) {
+                showToast("Pick an amount or type your own first", "error");
+                return;
+            }
+            if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+                showToast("Enter a valid email for your receipt", "error");
+                return;
+            }
+            if (typeof FlutterwaveCheckout !== 'function') {
+                showToast("Payment SDK didn't load — check your internet connection", "error");
+                return;
+            }
+
+            const btn = document.getElementById('donateSubmitBtn');
+            const label = document.getElementById('donateSubmitLabel');
+            label.innerText = 'Opening secure checkout…';
+            btn.disabled = true;
+
+            const txRef = `mapminer_${Date.now()}_${Math.floor(Math.random() * 100000)}`;
+            const source = document.getElementById('donateModal').dataset.source || 'unknown';
+
+            FlutterwaveCheckout({
+                public_key: FLW_PUBLIC_KEY,
+                tx_ref: txRef,
+                amount: customVal,
+                currency: donateCurrency,
+                payment_options: "card,ussd,banktransfer,mobilemoney",
+                customer: { email: email },
+                customizations: {
+                    title: "Support MapMiner",
+                    description: `One-time tip (source: ${source})`,
+                },
+                callback: function (data) {
+                    showToast("Thank you! Your support keeps MapMiner alive 💚", "success");
+                    closeDonateModal();
+                    dismissDonateBanner();
+                },
+                onclose: function () {
+                    label.innerText = 'Send Support';
+                    btn.disabled = false;
+                },
+            });
+
+            setTimeout(() => { label.innerText = 'Send Support'; btn.disabled = false; }, 3000);
+        }
+    </script>
+</body>
+</html>
